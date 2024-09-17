@@ -1,1 +1,24 @@
 
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Build directories
+build/
+dist/
+
+.gitignore
