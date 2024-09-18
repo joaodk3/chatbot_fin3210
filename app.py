@@ -14,6 +14,9 @@ units = {
     'Unit 6 - Capital Budgeting': os.path.join("assets", "Capital_Budgeting.pdf")
 }
 
+gpt_models = ["gpt-3.5-turbo", "gpt-4o", "gpt-4"]
+
+@st.cache_data(show_spinner=False)
 def read_pdf(file_path):
     text = ""
     with pdfplumber.open(file_path) as pdf:
@@ -54,7 +57,7 @@ Please adhere to the following guidelines:
     ]
 
     response = client.chat.completions.create(
-        model="gpt-4",
+        model=model,
         messages=full_messages,
         temperature=0.7,
         max_tokens=500,
@@ -63,22 +66,68 @@ Please adhere to the following guidelines:
     
     return response
 
+def faq_section():
+    st.markdown("### Frequently Asked Questions (FAQ)")
+
+    with st.expander("How Does the App Work?"):
+        st.write("""
+        This app allows you to ask questions about Managerial Finance topics. The chatbot is powered by OpenAI's GPT models, 
+        which read the selected unit's PDF content of the class and provide answers based on it. Make sure to provide a valid API key 
+        to interact with the chatbot.
+        """)
+
+    with st.expander("How to get an OpenAPI Key?"):
+        st.write("""
+        You can get an OpenAI API key by signing up at [OpenAI's API platform](https://platform.openai.com/signup). 
+        Once you've signed up, navigate to the API section in your account to generate an API key.
+        """)
+
+    with st.expander("What is an API Key?"):
+        st.write("""
+        An API key is a unique identifier used to authenticate requests made to the OpenAI API. It allows your app 
+        to securely interact with OpenAI's models.
+        """)
+
+    with st.expander("Is the API Key Free?"):
+        st.write("""
+        OpenAI offers limited free access to its API, but usage beyond certain limits will require a paid subscription.
+        You can check their pricing on the [OpenAI pricing page](https://openai.com/pricing).
+        """)
+
+    with st.expander("What are the differences between GPT models?"):
+        st.write("""
+        - **GPT-3.5-turbo**: The most cheap model, cost-effective, designed for more common questions.
+        - **GPT-4o**: A more advanced variant of GPT-4, which is faster and optimized for specific tasks.
+        - **GPT-4**: The most advanced model offering higher accuracy and a better understanding of complex inputs, 
+        but is more expensive and may take more time to generate responses, recommended for questions involving 
+        complex mathematical questions.
+        """)
+    
+    with st.expander("How to keep track of your API credits usage?"):
+            st.write('''
+            You can track your OpenAI API usage by visiting the [Usage Dashboard](https://platform.openai.com/account/usage). 
+            It provides details on your current usage and remaining credits.
+            ''')
+
 def main():
     st.title("🤓🧮 FIN3210 Chatbot")
 
     with st.sidebar:
         st.image("https://asset4.applyesl.com/images/sch/0134800/04.jpg")
         api_key = st.text_input("🔑 Insert your OpenAI API key", type="password")
+        global model
+        model = st.selectbox("Select a GPT Model", gpt_models)
         option = st.selectbox("📓 Select the Class Topic", list(units.keys()))
         st.write("You selected:", option)
-        st.write("\n")
-        st.link_button("Get an OpenAI API Key", "https://platform.openai.com/account/api-keys", type='primary')
-            
-        if st.button("Clear Conversation"):
+        st.divider()
+        faq_section()
+        st.divider()
+        if st.button("Clear Conversation", type="secondary"):
             st.session_state.messages = []
 
     if not api_key:
         st.error("🔒 Please enter your OpenAI API key to continue.")
+        st.link_button("Get an OpenAI API Key", "https://platform.openai.com/account/api-keys", type='secondary')
         return
     
     # validate the API key
