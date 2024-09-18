@@ -3,14 +3,15 @@ from openai import OpenAI
 import pdfplumber
 import re
 from openai import OpenAIError
+import os
 
 units = {
-    "Unit 1 - Introduction": r"assets\Unit1_Intro.pdf",
-    'Unit 2 - Financial Statements': r"assets\Unit2_FinancialStatements.pdf", 
-    'Unit 3 - Time Value of Money': r"assets\Unit3_TimeValueOfMoney_annotated.pdf", 
-    'Unit 4 - Bonds': r"assets\Unit4_BONDS_Annotated.pdf", 
-    'Unit 5 - Stocks': r"assets\Unit5_Stocks_SlideDeck_annotated.pdf", 
-    'Unit 6 - Capital Budgeting': r"assets/Capital_Budgeting.pdf"
+    "Unit 1 - Introduction": os.path.join("assets", "Unit1_Intro.pdf"),
+    'Unit 2 - Financial Statements': os.path.join("assets", "Unit2_FinancialStatements.pdf"),
+    'Unit 3 - Time Value of Money': os.path.join("assets", "Unit3_TimeValueOfMoney_annotated.pdf"),
+    'Unit 4 - Bonds': os.path.join("assets", "Unit4_BONDS_Annotated.pdf"),
+    'Unit 5 - Stocks': os.path.join("assets", "Unit5_Stocks_SlideDeck_annotated.pdf"),
+    'Unit 6 - Capital Budgeting': os.path.join("assets", "Capital_Budgeting.pdf")
 }
 
 def read_pdf(file_path):
