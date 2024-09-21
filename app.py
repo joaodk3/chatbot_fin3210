@@ -155,13 +155,16 @@ def main():
         api_key = st.text_input("🔑 Insert your OpenAI API key", type="password")
         new_model = st.selectbox("Select a GPT Model", gpt_models)
         
-        if new_model != st.session_state.current_model: #suppose the student change the model
+        if new_model != st.session_state.current_model:
             st.session_state.current_model = new_model
             st.session_state.messages = []
             st.session_state.memory.clear() 
         
-        option = st.selectbox("📓 Select the Class Topic", list(units.keys()))
-        st.write("You selected:", option)
+        # Add an empty option as the default
+        units_with_default = {"Select a unit": ""} | units
+        option = st.selectbox("📓 Select the Class Topic", list(units_with_default.keys()))
+        if option != "Select a unit":
+            st.write("You selected:", option)
         st.divider()
         faq_section()
         st.divider()
@@ -169,7 +172,6 @@ def main():
             st.session_state.messages = []
             st.session_state.memory.clear()
 
-    #student did not provide a valid API
     if not api_key:
         st.error("🔒 Please enter your OpenAI API key to continue.")
         st.link_button("Get an OpenAI API Key", "https://platform.openai.com/account/api-keys", type='secondary')
@@ -178,6 +180,10 @@ def main():
     is_valid, error_message = validate_api_key(api_key)
     if not is_valid:
         st.error(f"❌ {error_message}")
+        return
+
+    if option == "Select a unit":
+        st.error("📚 Please select a class unit to continue.")
         return
 
     client = OpenAI(api_key=api_key)
