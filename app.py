@@ -96,7 +96,7 @@ Please adhere to the following guidelines:
 5. When discussing formulas or equations, present them clearly and explain their components.
 """
 
-    # Convert memory messages to the format expected by the OpenAI API
+    #convert memory messages
     memory_messages = []
     for msg in memory.chat_memory.messages:
         if isinstance(msg, HumanMessage):
@@ -155,10 +155,10 @@ def main():
         api_key = st.text_input("🔑 Insert your OpenAI API key", type="password")
         new_model = st.selectbox("Select a GPT Model", gpt_models)
         
-        if new_model != st.session_state.current_model:
+        if new_model != st.session_state.current_model: #suppose the student change the model
             st.session_state.current_model = new_model
             st.session_state.messages = []
-            st.session_state.memory.clear()  # Clear memory when model changes
+            st.session_state.memory.clear() 
         
         option = st.selectbox("📓 Select the Class Topic", list(units.keys()))
         st.write("You selected:", option)
@@ -169,6 +169,7 @@ def main():
             st.session_state.messages = []
             st.session_state.memory.clear()
 
+    #student did not provide a valid API
     if not api_key:
         st.error("🔒 Please enter your OpenAI API key to continue.")
         st.link_button("Get an OpenAI API Key", "https://platform.openai.com/account/api-keys", type='secondary')
