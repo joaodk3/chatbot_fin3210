@@ -79,11 +79,8 @@ def rate_limit(max_per_minute):
 def get_teacher_response(client, messages, option):
     pdf_content = get_pdf_content(option)
     chunks = chunk_text(pdf_content)
-    
-    # Use relevant chunks based on the question
-    # This is a simple implementation; consider using a more sophisticated retrieval system in production
-    relevant_chunks = chunks[:3]  # Select first 3 chunks
-    context = "\n".join(relevant_chunks)
+
+    context = "\n".join(chunks)
 
     memory = st.session_state.memory
     
