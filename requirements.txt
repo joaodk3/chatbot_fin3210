@@ -3,3 +3,4 @@ PyPDF2 == 3.0.1
 streamlit == 1.38.0
 pdfplumber
 pypdf
+langchain
