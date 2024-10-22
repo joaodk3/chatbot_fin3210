@@ -6,57 +6,13 @@ from openai import OpenAIError
 import os
 import time
 from functools import wraps
-from langchain.memory import ConversationBufferMemory
+from langchain_community.vectorstores import FAISS
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import HumanMessage, AIMessage
-
-units = {
-    "Unit 1 - Introduction": os.path.join("assets", "Unit1_Intro.pdf"),
-    'Unit 2 - Financial Statements': os.path.join("assets", "Unit2_FinancialStatements.pdf"),
-    'Unit 3 - Time Value of Money': os.path.join("assets", "Unit3_TimeValueOfMoney_annotated.pdf"),
-    'Unit 4 - Bonds': os.path.join("assets", "Unit4_BONDS_Annotated.pdf"),
-    'Unit 5 - Stocks': os.path.join("assets", "Unit5_Stocks_SlideDeck_annotated.pdf"),
-    'Unit 6 - Capital Budgeting': os.path.join("assets", "Capital_Budgeting.pdf")
-}
-
-gpt_models = ["gpt-3.5-turbo", "gpt-4o", "gpt-4"]
-
-if "current_model" not in st.session_state:
-    st.session_state.current_model = gpt_models[0]
-
-@st.cache_data(show_spinner=False)
-def read_pdf(file_path):
-    text = ""
-    with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
-    
-    text = re.sub(r'\n+', '\n', text)  
-    text = re.sub(r'\s+', ' ', text)   
-    return text
-
-@st.cache_data(show_spinner=False)
-def get_pdf_content(option):
-    return read_pdf(units[option])
-
-def chunk_text(text, chunk_size=4000, chunk_overlap=200):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len
-    )
-    return text_splitter.split_text(text)
-
-def validate_api_key(api_key):
-    client = OpenAI(api_key=api_key)
-    try:
-        client.models.list()
-        return True, None
-    except OpenAIError as e:
-        if "invalid_api_key" in str(e).lower():
-            return False, "Invalid API key. Please check and try again."
-        else:
-            return False, str(e)
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain.memory import ConversationBufferMemory
 
 def rate_limit(max_per_minute):
     min_interval = 60.0 / max_per_minute
@@ -75,57 +31,104 @@ def rate_limit(max_per_minute):
         return wrapper
     return decorator
 
-@rate_limit(max_per_minute=60) 
-def get_teacher_response(client, messages, option):
-    pdf_content = get_pdf_content(option)
-    chunks = chunk_text(pdf_content)
+units = {
+    "Unit 1 - Introduction": os.path.join("assets", "Unit1_Intro.pdf"),
+    'Unit 2 - Financial Statements': os.path.join("assets", "Unit2_FinancialStatements.pdf"),
+    'Unit 3 - Time Value of Money': os.path.join("assets", "Unit3_TimeValueOfMoney_annotated.pdf"),
+    'Unit 4 - Bonds': os.path.join("assets", "Unit4_BONDS_Annotated.pdf"),
+    'Unit 5 - Stocks': os.path.join("assets", "Unit5_Stocks_SlideDeck_annotated.pdf"),
+    'Unit 6 - Capital Budgeting': os.path.join("assets", "Capital_Budgeting.pdf")
+}
 
-    context = "\n".join(chunks)
+gpt_models = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
 
-    memory = st.session_state.memory
+if "current_model" not in st.session_state:
+    st.session_state.current_model = gpt_models[0]
+
+if "vector_stores" not in st.session_state:
+    st.session_state.vector_stores = {}
+
+@st.cache_data(show_spinner=False)
+def read_pdf(file_path):
+    text = ""
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() + "\n"
     
-    system_message = f"""You are an AI teaching assistant for a finance course. Your role is to answer questions based solely on the content provided from the selected PDF. Here's a summary of the PDF content:
+    text = re.sub(r'\n+', '\n', text)  
+    text = re.sub(r'\s+', ' ', text)   
+    return text
 
-{context}
+def create_vector_store(text, embeddings):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500, 
+        chunk_overlap=50,
+        length_function=len
+    )
+    chunks = text_splitter.split_text(text)
+    return FAISS.from_texts(chunks, embeddings)
 
-Please adhere to the following guidelines:
-1. Only answer questions related to the content in the provided PDF summary.
-2. If a question is outside the scope of the PDF content, politely inform the student that the topic is not covered in the current unit and suggest they refer to the appropriate unit or ask their professor.
-3. Use a friendly, professional tone appropriate for a teaching assistant.
-4. If you're unsure about an answer, it's okay to say so rather than providing potentially incorrect information.
-5. When discussing formulas or equations, present them clearly and explain their components.
-"""
+def get_vector_store(option, api_key):
+    if option not in st.session_state.vector_stores:
+        embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+        text = read_pdf(units[option])
+        st.session_state.vector_stores[option] = create_vector_store(text, embeddings)
+    return st.session_state.vector_stores[option]
 
-    #convert memory messages
-    memory_messages = []
-    for msg in memory.chat_memory.messages:
-        if isinstance(msg, HumanMessage):
-            memory_messages.append({"role": "user", "content": msg.content})
-        elif isinstance(msg, AIMessage):
-            memory_messages.append({"role": "assistant", "content": msg.content})
+def create_chain(vector_store, api_key, model_name):
+    llm = ChatOpenAI(
+        model_name=model_name,
+        openai_api_key=api_key,
+        temperature=0.7,
+        streaming=True
+    )
 
-    full_messages = [
-        {"role": "system", "content": system_message},
-        *memory_messages,
-        {"role": "user", "content": messages[-1]["content"]}
-    ]
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are an AI teaching assistant for a finance course. Answer questions based on the following context. 
+        If the question cannot be answered from the context, politely inform the student that the topic might be covered in a different unit.
+        
+        Context: {context}
+        """),
+        ("human", "{question}")
+    ])
 
+    retriever = vector_store.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": 3} 
+    )
+
+    chain = (
+        {"context": retriever, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    return chain
+
+def validate_api_key(api_key):
+    client = OpenAI(api_key=api_key)
     try:
-        response = client.chat.completions.create(
-            model=st.session_state.current_model,
-            messages=full_messages,
-            temperature=0.7,
-            max_tokens=500,
-            stream=True
-        )
+        client.models.list()
+        return True, None
+    except OpenAIError as e:
+        if "invalid_api_key" in str(e).lower():
+            return False, "Invalid API key. Please check and try again."
+        else:
+            return False, str(e)
+
+@rate_limit(max_per_minute=60)
+def get_teacher_response(chain, message):
+    try:
+        response = chain.stream(message)
         return response
     except OpenAIError as e:
         if "insufficient_quota" in str(e).lower():
-            st.error("❌ You have insufficient credits to perform this operation. Please add more credits to your OpenAI account.")
+            st.error("❌ You have insufficient credits to perform this operation.")
         else:
             st.error(f"❌ An error occurred: {str(e)}")
         return None
-
+    
 def faq_section():
     st.markdown("### Frequently Asked Questions (FAQ)")
 
@@ -144,6 +147,7 @@ def faq_section():
     with st.expander("How to keep track of your API credits usage?"):
         st.write("You can track your OpenAI API usage by visiting the [Usage Dashboard](https://platform.openai.com/account/usage).")
 
+
 def main():
     st.title("🤓🧮 FIN3210 Chatbot")
 
@@ -158,16 +162,17 @@ def main():
         if new_model != st.session_state.current_model:
             st.session_state.current_model = new_model
             st.session_state.messages = []
-            st.session_state.memory.clear() 
+            st.session_state.memory.clear()
         
-        # Add an empty option as the default
         units_with_default = {"Select a unit": ""} | units
         option = st.selectbox("📓 Select the Class Topic", list(units_with_default.keys()))
         if option != "Select a unit":
             st.write("You selected:", option)
+        
         st.divider()
         faq_section()
         st.divider()
+        
         if st.button("Clear Conversation", type="secondary"):
             st.session_state.messages = []
             st.session_state.memory.clear()
@@ -176,7 +181,7 @@ def main():
         st.error("🔒 Please enter your OpenAI API key to continue.")
         st.link_button("Get an OpenAI API Key", "https://platform.openai.com/account/api-keys", type='secondary')
         return
-    
+
     is_valid, error_message = validate_api_key(api_key)
     if not is_valid:
         st.error(f"❌ {error_message}")
@@ -185,8 +190,6 @@ def main():
     if option == "Select a unit":
         st.error("📚 Please select a class unit to continue.")
         return
-
-    client = OpenAI(api_key=api_key)
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -200,16 +203,17 @@ def main():
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        response = get_teacher_response(client, st.session_state.messages, option)
-        if response:
+        vector_store = get_vector_store(option, api_key)
+        chain = create_chain(vector_store, api_key, st.session_state.current_model)
+        
+        response_stream = get_teacher_response(chain, prompt)
+        if response_stream:
             with st.chat_message("assistant"):
                 full_response = ""
                 message_placeholder = st.empty()
-                for chunk in response:
-                    content = chunk.choices[0].delta.content
-                    if content is not None:
-                        full_response += content
-                        message_placeholder.markdown(full_response + "▌")
+                for chunk in response_stream:
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌")
                 message_placeholder.markdown(full_response)
             
             st.session_state.messages.append({"role": "assistant", "content": full_response})
