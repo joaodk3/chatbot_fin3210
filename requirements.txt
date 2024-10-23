@@ -8,3 +8,4 @@ langchain-chroma
 qdrant-client
 langchain-community
 langchain-openai
+faiss-cpu
