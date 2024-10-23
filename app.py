@@ -44,7 +44,7 @@ gpt_models = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
 
 if "current_model" not in st.session_state:
     st.session_state.current_model = gpt_models[0]
-
+    
 if "vector_stores" not in st.session_state:
     st.session_state.vector_stores = {}
 

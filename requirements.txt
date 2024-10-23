@@ -6,3 +6,4 @@ pypdf
 langchain
 langchain-chroma
 qdrant-client
+langchain-community
